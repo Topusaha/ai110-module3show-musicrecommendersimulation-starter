@@ -2,32 +2,16 @@
 
 ## Project Summary
 
-In this project you will build and explain a small music recommender system.
-
-Your goal is to:
-
-- Represent songs and a user "taste profile" as data
-- Design a scoring rule that turns that data into recommendations
-- Evaluate what your system gets right and wrong
-- Reflect on how this mirrors real world AI recommenders
-
-Replace this paragraph with your own summary of what your version does.
+The music reccomender sysem  provides a numerical fearture to score how close a song is to what the users preference is. In this small demo the users preference is defined and we score each song using different statistical techniques. 
 
 ---
 
 ## How The System Works
 
-Explain your design in plain language.
+Each **Song** has 7 scored features: `genre`, `mood`, `energy`, `valence`, `danceability`, `acousticness`, and `tempo_bpm`. Each **UserProfile** stores a preferred genre, mood, and target numeric values for those same features.
 
-Some prompts to answer:
+The **Recommender** scores every song by comparing it to the user's profile. Categorical features (`genre`, `mood`) score 1.0 on an exact match or 0.0 otherwise. Numeric features are scored with a Gaussian bell curve — 1.0 when the song exactly hits the target, decaying smoothly as it drifts away. Each feature's score is multiplied by a weight (genre is most important at 3.0; tempo least at 0.5), summed, and divided by 11.5 to produce a final 0–1 score. The top-k songs by score are returned as recommendations.
 
-- What features does each `Song` use in your system
-  - For example: genre, mood, energy, tempo
-- What information does your `UserProfile` store
-- How does your `Recommender` compute a score for each song
-- How do you choose which songs to recommend
-
-You can include a simple diagram or bullet list if helpful.
 
 ---
 
@@ -68,25 +52,47 @@ You can add more tests in `tests/test_recommender.py`.
 
 ## Experiments You Tried
 
-Use this section to document the experiments you ran. For example:
-
-- What happened when you changed the weight on genre from 2.0 to 0.5
-- What happened when you added tempo or valence to the score
-- How did your system behave for different types of users
+See [experiment-log.md](memory/experiment-log.md) for a full log of experiments.
 
 ---
 
 ## Limitations and Risks
 
-Summarize some limitations of your recommender.
+### Binary Cliff Effect
 
-Examples:
+Genre + mood together control 47.8% of the total possible score (5.5 / 11.5). This creates a hard cliff: any genre-matched song with even mediocre numerics will beat a numerically perfect wrong-genre song.
 
-- It only works on a tiny catalog
-- It does not understand lyrics or language
-- It might over favor one genre or mood
+**Example — High-Energy Pop user** (`genre=pop, mood=happy, energy=0.90, valence=0.85, danceability=0.85, acousticness=0.10, tempo=128 BPM`)
 
-You will go deeper on this in your model card.
+**Song A — correct genre/mood, mediocre numerics** → score **0.68**
+
+| Feature | Value | Gaussian | × Weight | Points |
+|---|---|---|---|---|
+| genre (pop ✓) | — | 1.0 | × 3.0 | 3.000 |
+| mood (happy ✓) | — | 1.0 | × 2.5 | 2.500 |
+| energy | 0.60 vs 0.90, σ=0.15 | 0.135 | × 2.0 | 0.270 |
+| valence | 0.60 vs 0.85, σ=0.20 | 0.458 | × 1.5 | 0.687 |
+| danceability | 0.65 vs 0.85, σ=0.20 | 0.607 | × 1.0 | 0.607 |
+| acousticness | 0.30 vs 0.10, σ=0.20 | 0.607 | × 1.0 | 0.607 |
+| tempo | 105 vs 128, σ=15 | 0.308 | × 0.5 | 0.154 |
+| **Total** | | | | **7.825 / 11.5 = 0.68** |
+
+**Song B — wrong genre/mood, perfect numerics** → score **0.52**
+
+| Feature | Value | Gaussian | × Weight | Points |
+|---|---|---|---|---|
+| genre (rock ✗) | — | 0.0 | × 3.0 | 0.000 |
+| mood (intense ✗) | — | 0.0 | × 2.5 | 0.000 |
+| energy | 0.90 vs 0.90 | 1.0 | × 2.0 | 2.000 |
+| valence | 0.85 vs 0.85 | 1.0 | × 1.5 | 1.500 |
+| danceability | 0.85 vs 0.85 | 1.0 | × 1.0 | 1.000 |
+| acousticness | 0.10 vs 0.10 | 1.0 | × 1.0 | 1.000 |
+| tempo | 128 vs 128 | 1.0 | × 0.5 | 0.500 |
+| **Total** | | | | **6.000 / 11.5 = 0.52** |
+
+The absolute ceiling for a wrong-genre song is 0.522. Genre + mood alone contribute 0.478 — so a matching song needs only a tiny numeric contribution to win, regardless of how well the wrong-genre song fits everywhere else.
+
+
 
 ---
 
